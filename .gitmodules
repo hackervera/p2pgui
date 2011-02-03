@@ -1,0 +1,3 @@
+[submodule "shoes"]
+	path = shoes
+	url = https://github.com/shoes/shoes.git
