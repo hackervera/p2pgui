@@ -29,6 +29,8 @@ def Math.power_modulo(b, p, m)
   end
 end
 
+
+#third time i ported this fucking function, thanks @donpdonp and @reidab
 def RSASign(sHashHex, pub, priv) #this function copied from the rsa.js script included in Tom Wu's jsbn library
   #n = new Math_BigInteger(pub,16);
   sMid = "";	fLen = ((pub.size*8) / 4) - sHashHex.length - 6
