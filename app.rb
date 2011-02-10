@@ -40,8 +40,8 @@ end
 
 def stacker
   colors = []
-  6.times do 
-    colors << "#%06x" % (rand * 0xffffff)
+  100.times do 
+    colors << white
   end
   #colors = ['#00f','#f00', '#0f0']
   matrix_y = 1
@@ -99,14 +99,15 @@ def stacker
   end
   rescue => e
     p e 
-    p e.backtrace
+    puts e.backtrace
 end
 
 class UDPMessage
   def initialize(socket)
     @socket = socket
+    @br = 0
   end
-  attr_accessor :hostname, :port, :body, :line
+  attr_accessor :hostname, :port, :body, :line, :me, :br
   def send_message
     @socket.send self.body, 0, self.hostname, self.port
   end
@@ -115,8 +116,8 @@ end
 def ping_loop(message)
   loop do
     sleep 30
-    p "Sending ping"
-    message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
+    p "Sending ping, I am: #{message.me}"
+    message.body = {"_to"=>"208.68.163.247:42424", "_line" => message.line, "_br"=>message.br}.to_json
     message.send_message
   end
 end
@@ -132,30 +133,36 @@ def start_udpserver
   message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
   p "sending message"
   p message.send_message
+  counter = 1
+  
   loop do
     p "waiting for message"
-    response, addr = socket.recvfrom(50000)
+    response, addr = socket.recvfrom(50000000)
+    message.br += response.size
     response_json = JSON.parse(response)
     p response_json
     line = nil
-    if response_json.has_key? "_ring"
+    if response_json.has_key?("_ring")
       line = response_json["_ring"]
+      message.me = response_json["_to"]
       message.body = {".tap"=>[{"has" => ["+key"]}],"_line"=>line, "_to"=>"208.68.163.247:42424"}.to_json
       message.line = line
       Thread.new do
         ping_loop(message)
-      end
+      end if counter == 1
+      
       p "Sending tap"
       message.send_message
+      counter += 1
     end
     if response_json.has_key? "+key" 
       if RSAVerify(response_json["+key"], response_json["+message"], response_json["+sig"])
-        p $stacks
+        #p $stacks
         $stacks.each do |stack|
-          p stack[1]
-          p response_json["+matrix_x"]
+          #p stack[1]
+          #p response_json["+matrix_x"]
           if stack[1] == response_json["+matrix_x"].to_i
-            p "found a match for square #{response_json["+matrix_x"]}"
+            #p "found a match for square #{response_json["+matrix_x"]}"
             stack[0].fill response_json["+message"]
             stack[0].stroke response_json["+message"]
             stack[0].rect(0,0,30,30)
@@ -167,10 +174,10 @@ def start_udpserver
   end
   rescue => e
     p e
-    p e.backtrace
+    puts e.backtrace
 end
   
-Shoes.app :width => 120, :height => 40 do
+Shoes.app :width => 500, :height => 300 do
 
   $stacks = []
   Thread.new do
