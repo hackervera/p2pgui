@@ -37,8 +37,15 @@ def Math.power_modulo(b, p, m)
   end
 end
 
+
 def stacker
-  colors = ['#00f','#f00', '#0f0']
+  colors = []
+  6.times do 
+    colors << "#%06x" % (rand * 0xffffff)
+  end
+  #colors = ['#00f','#f00', '#0f0']
+  matrix_y = 1
+  matrix_x = 1
   colors.each do |color|
     baz = stack :width => 30, :height => 30 do |this|
       
@@ -49,7 +56,9 @@ def stacker
         #alert("clicked on #{color} square")
         p baz
         thisColor = "#%06x" % (rand * 0xffffff)
-        $stacks << baz
+        matrix_x = $stacks.select do |stack|
+          stack[0] == baz
+        end.first[1]
         baz.fill thisColor
         baz.stroke thisColor
         baz.rect(0,0,30,30)
@@ -57,11 +66,21 @@ def stacker
         p msg
         sha1 = Digest::SHA1.hexdigest(msg)
         p sha1
+        #modulus hex encoded
         n= 0xcc0f26cd602216e149fe8c2b4027293cd05cd5ccb8720d48a3e50c11c4ce5402cbd3d186e05f5bf15acb078c945f3ca99d0f1b4c7a01722704981afe7ba58f5b
+        #decryption exponent hex encoded
         d = 0x880b6df62caa6d90a3d166480b8c504cf029848ce947789dbe4f1d7dd7352c0243dc83e5c7704632b0ad55e9086c11deb7bbda791b59a2eca8da99be6dde6a79
         sig = RSASign(sha1, n, d).to_s(16)
         p "SIG: #{sig}"
-        telex = {"+key" => n.to_s(16), "_hop" => 1,"+end" => "8bf1cce916417d16b7554135b6b075fb16dd26ce","_to"=>"208.68.163.247:42424", "+sig"=>sig, "+message"=>msg }.to_json
+        telex = { "+key" => n.to_s(16), 
+                  "_hop" => 1,
+                  "+end" => "8bf1cce916417d16b7554135b6b075fb16dd26ce",
+                  "_to"=>"208.68.163.247:42424", 
+                  "+sig"=>sig, 
+                  "+message"=>msg,
+                  "+matrix_x" => matrix_x,
+                  "+matrix_y" => matrix_y
+                }.to_json
         p "TELEX: #{telex}"
         sock = UDPSocket.new
         
@@ -71,16 +90,34 @@ def stacker
       end
       rect(0,0,30,30)
     end
+    #p baz.methods - Object.methods
+
+    $stacks << [ baz, matrix_x, matrix_y ]
+    
     p "foo"
+    matrix_x += 1
   end
+  rescue => e
+    p e 
+    p e.backtrace
 end
+
 class UDPMessage
   def initialize(socket)
     @socket = socket
   end
-  attr_accessor :hostname, :port, :body
+  attr_accessor :hostname, :port, :body, :line
   def send_message
     @socket.send self.body, 0, self.hostname, self.port
+  end
+end
+
+def ping_loop(message)
+  loop do
+    sleep 30
+    p "Sending ping"
+    message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
+    message.send_message
   end
 end
 
@@ -89,8 +126,6 @@ def start_udpserver
   socket = UDPSocket.new
   p "binding server"
   p socket.bind("0.0.0.0",0)
-  #sockaddr = Socket.pack_sockaddr_in( 8888, 'localhost' )
-  #p socket.bind(sockaddr)
   message = UDPMessage.new(socket)
   message.hostname = "telehash.org"
   message.port = 42424
@@ -101,12 +136,15 @@ def start_udpserver
     p "waiting for message"
     response, addr = socket.recvfrom(50000)
     response_json = JSON.parse(response)
-    #p response
     p response_json
     line = nil
     if response_json.has_key? "_ring"
       line = response_json["_ring"]
       message.body = {".tap"=>[{"has" => ["+key"]}],"_line"=>line, "_to"=>"208.68.163.247:42424"}.to_json
+      message.line = line
+      Thread.new do
+        ping_loop(message)
+      end
       p "Sending tap"
       message.send_message
     end
@@ -114,9 +152,14 @@ def start_udpserver
       if RSAVerify(response_json["+key"], response_json["+message"], response_json["+sig"])
         p $stacks
         $stacks.each do |stack|
-          stack.fill response_json["+message"]
-          stack.stroke response_json["+message"]
-          stack.rect(0,0,30,30)
+          p stack[1]
+          p response_json["+matrix_x"]
+          if stack[1] == response_json["+matrix_x"].to_i
+            p "found a match for square #{response_json["+matrix_x"]}"
+            stack[0].fill response_json["+message"]
+            stack[0].stroke response_json["+message"]
+            stack[0].rect(0,0,30,30)
+          end
         end
       end
     end
@@ -127,7 +170,8 @@ def start_udpserver
     p e.backtrace
 end
   
-Shoes.app :width => 60, :height => 32 do
+Shoes.app :width => 120, :height => 40 do
+
   $stacks = []
   Thread.new do
     start_udpserver
