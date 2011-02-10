@@ -1,31 +1,21 @@
 #ShoutOut to @donpdonp for suggesting Shoes for gui
 require 'rubygems'
-#Thread.abort_on_exception = true
-#require 'ezcrypto/signer'
 SHOES_APP = File.expand_path(__FILE__)
 require 'shoes'
-Shoes.setup do
-  gem 'ezcrypto'
-end
-require 'ezcrypto'
-require 'ezsig'
 require 'digest/sha1'
 require 'json'
 require 'socket'
 
 #third time i ported this fucking function, thanks @donpdonp and @reidab
 def RSASign(sHashHex, pub, priv) #this function copied from the rsa.js script included in Tom Wu's jsbn library
-  #n = new Math_BigInteger(pub,16);
   sMid = "";	fLen = ((pub.size*8) / 4) - sHashHex.length - 6
-  #p pub.to_bits
   i = 0
-  p "FLEN #{fLen}"
+  #p "FLEN #{fLen}"
   sMid = "f"*fLen
-  p "SMID: #{sMid.length}"
+  #p "SMID: #{sMid.length}"
   hPM = "0001" + sMid + "00" + sHashHex #this pads the hash to desired length - not entirely sure whether those 'ff' should be random bytes for security or not
   x = hPM.to_i(16) #turn the padded message into a jsbn BigInteger object
-  #$d = new Math_BigInteger($priv,16)
-  p "X: #{x}, PRIV: #{priv}, PUB: #{pub}"
+  #p "X: #{x}, PRIV: #{priv}, PUB: #{pub}"
   return Math.power_modulo(x,priv,pub) #$x->modPow($d, $n)
 end
 
@@ -35,12 +25,6 @@ def RSAVerify(modulus, message, signature)
   return Math.power_modulo(x,"10001".to_i(16), n).to_s(16).gsub(/^1f+00/, '') == Digest::SHA1.hexdigest(message)
 end
 
-
-class Bignum
-  def to_bits(num = self)
-    num.to_s(2).split(//).inject(0) { |s,i| s + i.to_i }
-  end
-end
 
 def Math.power_modulo(b, p, m)
   if p == 1
@@ -53,21 +37,11 @@ def Math.power_modulo(b, p, m)
   end
 end
 
-class StackObject << Array
-  def initialize
-    @stacks = []
-  end
-  def add
-stacks = []
-
-
-
 def stacker
-
   colors = ['#00f','#f00', '#0f0']
   colors.each do |color|
     baz = stack :width => 30, :height => 30 do |this|
-      stacks << baz
+      
       fill color
       stroke color
       foo = self
@@ -75,6 +49,7 @@ def stacker
         #alert("clicked on #{color} square")
         p baz
         thisColor = "#%06x" % (rand * 0xffffff)
+        $stacks << baz
         baz.fill thisColor
         baz.stroke thisColor
         baz.rect(0,0,30,30)
@@ -113,7 +88,7 @@ def start_udpserver
   p "Starting server"
   socket = UDPSocket.new
   p "binding server"
-  p socket.bind("0.0.0.0",8888)
+  p socket.bind("0.0.0.0",0)
   #sockaddr = Socket.pack_sockaddr_in( 8888, 'localhost' )
   #p socket.bind(sockaddr)
   message = UDPMessage.new(socket)
@@ -137,9 +112,10 @@ def start_udpserver
     end
     if response_json.has_key? "+key" 
       if RSAVerify(response_json["+key"], response_json["+message"], response_json["+sig"])
-        stacks.each do |stack|
-          stack.fill black
-          stack.stroke black
+        p $stacks
+        $stacks.each do |stack|
+          stack.fill response_json["+message"]
+          stack.stroke response_json["+message"]
           stack.rect(0,0,30,30)
         end
       end
@@ -152,7 +128,7 @@ def start_udpserver
 end
   
 Shoes.app :width => 60, :height => 32 do
-
+  $stacks = []
   Thread.new do
     start_udpserver
   end
