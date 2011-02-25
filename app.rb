@@ -132,7 +132,7 @@ end
 
 Shoes.app :width => 500, :height => 300 do
 
-  def stacker
+  def stacker(stacks)
     colors = []
     100.times do 
       colors << white
@@ -150,7 +150,7 @@ Shoes.app :width => 500, :height => 300 do
           #alert("clicked on #{color} square")
           p baz
           thisColor = "#%06x" % (rand * 0xffffff)
-          matrix_x = $stacks.select do |stack|
+          matrix_x = stacks.select do |stack|
             stack[0] == baz
           end.first[1]
           baz.fill thisColor
@@ -170,7 +170,7 @@ Shoes.app :width => 500, :height => 300 do
       end
       #p baz.methods - Object.methods
 
-      $stacks << [ baz, matrix_x, matrix_y ]
+      stacks << [ baz, matrix_x, matrix_y ]
     
       p "foo"
       matrix_x += 1
@@ -180,11 +180,11 @@ Shoes.app :width => 500, :height => 300 do
       puts e.backtrace
   end
 
-  def drawer(response_json)
+  def drawer(response_json, stacks)
     if response_json.has_key? "+key" 
       if GilliesRSA.verify(response_json["+key"], response_json["+message"], response_json["+sig"])
         #p $stacks
-        $stacks.each do |stack|
+        stacks.each do |stack|
           #p stack[1]
           #p response_json["+matrix_x"]
           if stack[1] == response_json["+matrix_x"].to_i
@@ -200,16 +200,16 @@ Shoes.app :width => 500, :height => 300 do
 
   
 
-  $stacks = []
+  stacks = []
   telehash = TeleHash.new
 
   Thread.new do
     telehash.server do |response_json|
-      drawer(response_json)
+      drawer(response_json, stacks)
     end
   end
 
-  stacker
+  stacker(stacks)
 
 end
 
