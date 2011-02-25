@@ -72,31 +72,31 @@ class TeleHash
                  "_hop" => 1,
                  "+end" => "8bf1cce916417d16b7554135b6b075fb16dd26ce",
                  "_to"=>"208.68.163.247:42424"})
-    p "TELEX: #{data}"
+    Shoes.debug "TELEX: #{data}"
     sock = UDPSocket.new
     sock.send(data.to_json, 0, Server, Port)
     sock.close
   end
 
   def server
-    p "Starting server"
+    Shoes.debug "Starting server"
     socket = UDPSocket.new
-    p "binding server"
+    Shoes.debug "binding server"
     p socket.bind("0.0.0.0",0)
     message = UDPMessage.new(socket)
     message.hostname = Server
     message.port = Port
     message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
-    p "sending message"
+    Shoes.debug "sending message"
     p message.send_message
     counter = 1
     
     loop do
-      p "waiting for message"
+      Shoes.debug "waiting for message"
       response, addr = socket.recvfrom(50000000)
       message.br += response.size
       response_json = JSON.parse(response)
-      p response_json
+      Shoes.debug response_json
       line = nil
       if response_json.has_key?("_ring")
         line = response_json["_ring"]
@@ -107,7 +107,7 @@ class TeleHash
           ping_loop(message)
         end if counter == 1
         
-        p "Sending tap"
+        Shoes.debug "Sending tap"
         message.send_message
         counter += 1
       end
@@ -116,14 +116,14 @@ class TeleHash
       
     end
     rescue => e
-      p e
-      puts e.backtrace
+      Shoes.debug e
+      Shoes.debug e.backtrace
   end
 
   def ping_loop(message)
     loop do
       sleep 30
-      p "Sending ping, I am: #{message.me}"
+      Shoes.debug "Sending ping, I am: #{message.me}"
       message.body = {"_to"=>"208.68.163.247:42424", "_line" => message.line, "_br"=>message.br}.to_json
       message.send_message
     end
@@ -132,7 +132,8 @@ end
 
 Shoes.app :width => 500, :height => 300 do
 
-  def stacker(stacks)
+  def stacker
+  	stacks = []
     colors = []
     100.times do 
       colors << white
@@ -148,7 +149,7 @@ Shoes.app :width => 500, :height => 300 do
         foo = self
         click do |b,x,y|
           #alert("clicked on #{color} square")
-          p baz
+          Shoes.debug baz
           thisColor = "#%06x" % (rand * 0xffffff)
           matrix_x = stacks.select do |stack|
             stack[0] == baz
@@ -157,7 +158,7 @@ Shoes.app :width => 500, :height => 300 do
           baz.stroke thisColor
           baz.rect(0,0,30,30)
           msg = thisColor
-          p msg
+          Shoes.debug msg
           sig = GilliesRSA.mysign(msg)
           telex={"+message"=>msg,
                  "+matrix_x" => matrix_x,
@@ -172,12 +173,12 @@ Shoes.app :width => 500, :height => 300 do
 
       stacks << [ baz, matrix_x, matrix_y ]
     
-      p "foo"
+      Shoes.debug "foo"
       matrix_x += 1
     end
     rescue => e
-      p e 
-      puts e.backtrace
+      Shoes.debug e 
+      Shoes.debug e.backtrace
   end
 
   def drawer(response_json, stacks)
@@ -200,7 +201,6 @@ Shoes.app :width => 500, :height => 300 do
 
   
 
-  stacks = []
   telehash = TeleHash.new
 
   Thread.new do
@@ -209,7 +209,7 @@ Shoes.app :width => 500, :height => 300 do
     end
   end
 
-  stacker(stacks)
+  stacker
 
 end
 
