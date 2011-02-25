@@ -117,48 +117,7 @@ Shoes.app :width => 500, :height => 300 do
       puts e.backtrace
   end
 
-def ping_loop(message)
-  loop do
-    sleep 30
-    p "Sending ping, I am: #{message.me}"
-    message.body = {"_to"=>"208.68.163.247:42424", "_line" => message.line, "_br"=>message.br}.to_json
-    message.send_message
-  end
-end
-
-def start_udpserver
-  p "Starting server"
-  socket = UDPSocket.new
-  p "binding server"
-  p socket.bind("0.0.0.0",0)
-  message = UDPMessage.new(socket)
-  message.hostname = "telehash.org"
-  message.port = 42424
-  message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
-  p "sending message"
-  p message.send_message
-  counter = 1
-  
-  loop do
-    p "waiting for message"
-    response, addr = socket.recvfrom(50000000)
-    message.br += response.size
-    response_json = JSON.parse(response)
-    p response_json
-    line = nil
-    if response_json.has_key?("_ring")
-      line = response_json["_ring"]
-      message.me = response_json["_to"]
-      message.body = {".tap"=>[{"has" => ["+key"]}],"_line"=>line, "_to"=>"208.68.163.247:42424"}.to_json
-      message.line = line
-      Thread.new do
-        ping_loop(message)
-      end if counter == 1
-      
-      p "Sending tap"
-      message.send_message
-      counter += 1
-    end
+  def drawer(response_json)
     if response_json.has_key? "+key" 
       if GilliesRSA.verify(response_json["+key"], response_json["+message"], response_json["+sig"])
         #p $stacks
@@ -174,17 +133,65 @@ def start_udpserver
         end
       end
     end
-    
   end
-  rescue => e
-    p e
-    puts e.backtrace
-end
+
+  def ping_loop(message)
+    loop do
+      sleep 30
+      p "Sending ping, I am: #{message.me}"
+      message.body = {"_to"=>"208.68.163.247:42424", "_line" => message.line, "_br"=>message.br}.to_json
+      message.send_message
+    end
+  end
+
+  def start_udpserver
+    p "Starting server"
+    socket = UDPSocket.new
+    p "binding server"
+    p socket.bind("0.0.0.0",0)
+    message = UDPMessage.new(socket)
+    message.hostname = "telehash.org"
+    message.port = 42424
+    message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
+    p "sending message"
+    p message.send_message
+    counter = 1
+    
+    loop do
+      p "waiting for message"
+      response, addr = socket.recvfrom(50000000)
+      message.br += response.size
+      response_json = JSON.parse(response)
+      p response_json
+      line = nil
+      if response_json.has_key?("_ring")
+        line = response_json["_ring"]
+        message.me = response_json["_to"]
+        message.body = {".tap"=>[{"has" => ["+key"]}],"_line"=>line, "_to"=>"208.68.163.247:42424"}.to_json
+        message.line = line
+        Thread.new do
+          ping_loop(message)
+        end if counter == 1
+        
+        p "Sending tap"
+        message.send_message
+        counter += 1
+      end
+  
+      yield response_json
+      
+    end
+    rescue => e
+      p e
+      puts e.backtrace
+  end
   
 
   $stacks = []
   Thread.new do
-    start_udpserver
+    start_udpserver do |response_json|
+      drawer(response_json)
+    end
   end
 
   stacker
