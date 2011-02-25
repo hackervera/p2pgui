@@ -66,10 +66,67 @@ end
 class TeleHash
   Server = 'telehash.org'
   Port = 42424
+
   def self.send(data)
+    data.merge!({"+key" => GilliesRSA.mymodulus.to_s(16), 
+                 "_hop" => 1,
+                 "+end" => "8bf1cce916417d16b7554135b6b075fb16dd26ce",
+                 "_to"=>"208.68.163.247:42424"})
+    p "TELEX: #{data}"
     sock = UDPSocket.new
-    sock.send(data, 0, Server, Port)
+    sock.send(data.to_json, 0, Server, Port)
     sock.close
+  end
+
+  def server
+    p "Starting server"
+    socket = UDPSocket.new
+    p "binding server"
+    p socket.bind("0.0.0.0",0)
+    message = UDPMessage.new(socket)
+    message.hostname = Server
+    message.port = Port
+    message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
+    p "sending message"
+    p message.send_message
+    counter = 1
+    
+    loop do
+      p "waiting for message"
+      response, addr = socket.recvfrom(50000000)
+      message.br += response.size
+      response_json = JSON.parse(response)
+      p response_json
+      line = nil
+      if response_json.has_key?("_ring")
+        line = response_json["_ring"]
+        message.me = response_json["_to"]
+        message.body = {".tap"=>[{"has" => ["+key"]}],"_line"=>line, "_to"=>"208.68.163.247:42424"}.to_json
+        message.line = line
+        Thread.new do
+          ping_loop(message)
+        end if counter == 1
+        
+        p "Sending tap"
+        message.send_message
+        counter += 1
+      end
+  
+      yield response_json
+      
+    end
+    rescue => e
+      p e
+      puts e.backtrace
+  end
+
+  def ping_loop(message)
+    loop do
+      sleep 30
+      p "Sending ping, I am: #{message.me}"
+      message.body = {"_to"=>"208.68.163.247:42424", "_line" => message.line, "_br"=>message.br}.to_json
+      message.send_message
+    end
   end
 end
 
@@ -102,16 +159,11 @@ Shoes.app :width => 500, :height => 300 do
           msg = thisColor
           p msg
           sig = GilliesRSA.mysign(msg)
-          telex = { "+key" => GilliesRSA.mymodulus.to_s(16), 
-                    "_hop" => 1,
-                    "+end" => "8bf1cce916417d16b7554135b6b075fb16dd26ce",
-                    "_to"=>"208.68.163.247:42424", 
-                    "+sig"=>sig, 
-                    "+message"=>msg,
-                    "+matrix_x" => matrix_x,
-                    "+matrix_y" => matrix_y
-                  }.to_json
-          p "TELEX: #{telex}"
+          telex={"+message"=>msg,
+                 "+matrix_x" => matrix_x,
+                 "+matrix_y" => matrix_y,
+                 "+sig"=>sig, 
+               }
           TeleHash.send(telex)
         end
         rect(0,0,30,30)
@@ -146,61 +198,13 @@ Shoes.app :width => 500, :height => 300 do
     end
   end
 
-  def ping_loop(message)
-    loop do
-      sleep 30
-      p "Sending ping, I am: #{message.me}"
-      message.body = {"_to"=>"208.68.163.247:42424", "_line" => message.line, "_br"=>message.br}.to_json
-      message.send_message
-    end
-  end
-
-  def start_udpserver
-    p "Starting server"
-    socket = UDPSocket.new
-    p "binding server"
-    p socket.bind("0.0.0.0",0)
-    message = UDPMessage.new(socket)
-    message.hostname = "telehash.org"
-    message.port = 42424
-    message.body = {"+end"=>"38666817e1b38470644e004b9356c1622368fa57"}.to_json
-    p "sending message"
-    p message.send_message
-    counter = 1
-    
-    loop do
-      p "waiting for message"
-      response, addr = socket.recvfrom(50000000)
-      message.br += response.size
-      response_json = JSON.parse(response)
-      p response_json
-      line = nil
-      if response_json.has_key?("_ring")
-        line = response_json["_ring"]
-        message.me = response_json["_to"]
-        message.body = {".tap"=>[{"has" => ["+key"]}],"_line"=>line, "_to"=>"208.68.163.247:42424"}.to_json
-        message.line = line
-        Thread.new do
-          ping_loop(message)
-        end if counter == 1
-        
-        p "Sending tap"
-        message.send_message
-        counter += 1
-      end
-  
-      yield response_json
-      
-    end
-    rescue => e
-      p e
-      puts e.backtrace
-  end
   
 
   $stacks = []
+  telehash = TeleHash.new
+
   Thread.new do
-    start_udpserver do |response_json|
+    telehash.server do |response_json|
       drawer(response_json)
     end
   end
