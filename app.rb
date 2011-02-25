@@ -132,8 +132,7 @@ end
 
 Shoes.app :width => 500, :height => 300 do
 
-  def stacker
-  	stacks = []
+  def stacker(stacks)
     colors = []
     100.times do 
       colors << white
@@ -173,7 +172,6 @@ Shoes.app :width => 500, :height => 300 do
 
       stacks << [ baz, matrix_x, matrix_y ]
     
-      Shoes.debug "foo"
       matrix_x += 1
     end
     rescue => e
@@ -202,14 +200,14 @@ Shoes.app :width => 500, :height => 300 do
   
 
   telehash = TeleHash.new
-
+  stacks = []
   Thread.new do
     telehash.server do |response_json|
       drawer(response_json, stacks)
     end
   end
 
-  stacker
+  stacker(stacks)
 
 end
 
