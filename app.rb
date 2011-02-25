@@ -7,6 +7,19 @@ require 'json'
 require 'socket'
 
 class GilliesRSA
+  def self.mymodulus
+    0xcc0f26cd602216e149fe8c2b4027293cd05cd5ccb8720d48a3e50c11c4ce5402cbd3d186e05f5bf15acb078c945f3ca99d0f1b4c7a01722704981afe7ba58f5b
+  end
+
+  def self.mysign(msg)
+    sha1 = Digest::SHA1.hexdigest(msg)
+    #modulus hex encoded
+    n= self.mymodulus
+    #decryption exponent hex encoded
+    d = 0x880b6df62caa6d90a3d166480b8c504cf029848ce947789dbe4f1d7dd7352c0243dc83e5c7704632b0ad55e9086c11deb7bbda791b59a2eca8da99be6dde6a79
+    self.sign(sha1, n, d).to_s(16)
+  end
+
   #third time i ported this fucking function, thanks @donpdonp and @reidab
   def self.sign(sHashHex, pub, priv) #this function copied from the rsa.js script included in Tom Wu's jsbn library
     sMid = ""
@@ -50,6 +63,15 @@ def Math.power_modulo(b, p, m)
   end
 end
 
+class TeleHash
+  Server = 'telehash.org'
+  Port = 42424
+  def self.send(data)
+    sock = UDPSocket.new
+    sock.send(data, 0, Server, Port)
+    sock.close
+  end
+end
 
 Shoes.app :width => 500, :height => 300 do
 
@@ -79,15 +101,8 @@ Shoes.app :width => 500, :height => 300 do
           baz.rect(0,0,30,30)
           msg = thisColor
           p msg
-          sha1 = Digest::SHA1.hexdigest(msg)
-          p sha1
-          #modulus hex encoded
-          n= 0xcc0f26cd602216e149fe8c2b4027293cd05cd5ccb8720d48a3e50c11c4ce5402cbd3d186e05f5bf15acb078c945f3ca99d0f1b4c7a01722704981afe7ba58f5b
-          #decryption exponent hex encoded
-          d = 0x880b6df62caa6d90a3d166480b8c504cf029848ce947789dbe4f1d7dd7352c0243dc83e5c7704632b0ad55e9086c11deb7bbda791b59a2eca8da99be6dde6a79
-          sig = GilliesRSA.sign(sha1, n, d).to_s(16)
-          p "SIG: #{sig}"
-          telex = { "+key" => n.to_s(16), 
+          sig = GilliesRSA.mysign(msg)
+          telex = { "+key" => GilliesRSA.mymodulus.to_s(16), 
                     "_hop" => 1,
                     "+end" => "8bf1cce916417d16b7554135b6b075fb16dd26ce",
                     "_to"=>"208.68.163.247:42424", 
@@ -97,11 +112,7 @@ Shoes.app :width => 500, :height => 300 do
                     "+matrix_y" => matrix_y
                   }.to_json
           p "TELEX: #{telex}"
-          sock = UDPSocket.new
-        
-          data = telex
-          sock.send(data, 0, 'telehash.org', 42424)
-          sock.close
+          TeleHash.send(telex)
         end
         rect(0,0,30,30)
       end
